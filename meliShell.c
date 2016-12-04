@@ -32,17 +32,21 @@ int main(void)
     int i;
 
     while(1){
+      memset(commandBuffer, 0, sizeof(commandBuffer));
       printf(">");
 
       if (fgets(commandBuffer, 300, stdin) != NULL) {
 
+        char * pos;
+        if ((pos=strchr(commandBuffer, '\n')) != NULL){
+          *pos = '\0';
+        }
+
         //parsing args for command
         tempArgs[0] = strtok(commandBuffer, " ");
-        printf("%s\n",tempArgs[0]);
 
         i = 1;
         while (i < maxArgs){
-          printf("number of args %d\n", i);
           tempArgs[i] = strtok(NULL, " ");
           if (tempArgs[i] == NULL){
             break;
@@ -51,7 +55,7 @@ int main(void)
         }
 
         currentCommand->commandArguments = (char **)malloc((i+1) * sizeof(char*));
-        currentCommand->commandArguments[i] = '\0';
+        currentCommand->commandArguments[i] = (char *) 0;
         memcpy(currentCommand->commandArguments, &tempArgs[0], i*sizeof(char*));
         currentCommand->argc = i;
         currentCommand->commandText = currentCommand->commandArguments[0];
@@ -61,14 +65,18 @@ int main(void)
         fflush(stdout);
 
         //execution of command
+        int status;
         int pid = fork();
         if (pid == 0) {
+          //child process
           execvp (currentCommand->commandText, currentCommand->commandArguments);
+          //execvp ("ls\n", currentCommand->commandArguments);
           perror("execvp failure");
           return 1;
         }
         else {
-          // TODO: wait for child
+          //parent process
+          waitpid(pid, &status, 0);
         }
       }
     }
