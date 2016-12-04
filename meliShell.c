@@ -8,7 +8,6 @@ typedef struct {
    char **commandArguments;
    struct Command* nextCommand;
    int piped;
-   int background;
    int argc;
 } Command;
 
@@ -29,9 +28,10 @@ int main(void)
     char commandBuffer[300];
     int maxArgs = 10;
     char *tempArgs[maxArgs];
-    int i;
+    int i, background;
 
     while(1){
+      background = 0;
       memset(commandBuffer, 0, sizeof(commandBuffer));
       printf(">");
 
@@ -39,6 +39,11 @@ int main(void)
 
         char * pos;
         if ((pos=strchr(commandBuffer, '\n')) != NULL){
+          *pos = '\0';
+        }
+
+        if ((pos=strchr(commandBuffer, '&')) != NULL){
+          background = 1;
           *pos = '\0';
         }
 
@@ -76,7 +81,9 @@ int main(void)
         }
         else {
           //parent process
-          waitpid(pid, &status, 0);
+          if (!background) {
+            waitpid(pid, &status, 0);
+          }
         }
       }
     }
