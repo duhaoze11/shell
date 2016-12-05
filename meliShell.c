@@ -1,34 +1,20 @@
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <unistd.h>
-
-typedef struct {
-   char *commandText;
-   char **commandArguments;
-   struct Command* nextCommand;
-   int piped;
-   int argc;
-} Command;
-
-char * addStringEnding(char *unendedString);
+#include "meliShell.h"
 
 void printCommand(Command *command){
   int i;
-  printf("command: %s\n", command->commandText);
-  printf("number of args: %d\n", command->argc);
+  printf("command: %s ", command->commandText);
+  printf("number of args: %d ", command->argc);
   for(i=0; i<=command->argc; i++){
-    printf("argument: %s\n", command->commandArguments[i]);
+    printf("argument: %s ", command->commandArguments[i]);
   }
+  printf("\n");
 }
 
 int main(void)
 {
-    Command *currentCommand = malloc(sizeof(Command));
+    Command *currentCommand;
     char commandBuffer[300];
-    int maxArgs = 10;
-    char *tempArgs[maxArgs];
-    int i, background;
+    int background;
 
     while(1){
       background = 0;
@@ -37,35 +23,30 @@ int main(void)
 
       if (fgets(commandBuffer, 300, stdin) != NULL) {
 
+        //Strip the newline character
         char * pos;
         if ((pos=strchr(commandBuffer, '\n')) != NULL){
           *pos = '\0';
         }
 
+        //Find the background execution terminator
+        //TODO: check if it's in the end
         if ((pos=strchr(commandBuffer, '&')) != NULL){
           background = 1;
           *pos = '\0';
         }
 
-        //parsing args for command
-        tempArgs[0] = strtok(commandBuffer, " ");
+        //parsing commands
+        char *parsePtr;
+        Command *newCommand;
+        char *commandPart = strtok_r(commandBuffer, "|", &parsePtr);
+        currentCommand = parseCommand(commandPart);
 
-        i = 1;
-        while (i < maxArgs){
-          tempArgs[i] = strtok(NULL, " ");
-          if (tempArgs[i] == NULL){
-            break;
-          }
-          i++;
+        while ((commandPart = strtok_r(NULL, "|", &parsePtr)) != NULL){
+          newCommand = parseCommand(commandPart);
+          newCommand->nextCommand = currentCommand;
+          currentCommand = newCommand;
         }
-
-        currentCommand->commandArguments = (char **)malloc((i+1) * sizeof(char*));
-        currentCommand->commandArguments[i] = (char *) 0;
-        memcpy(currentCommand->commandArguments, &tempArgs[0], i*sizeof(char*));
-        currentCommand->argc = i;
-        currentCommand->commandText = currentCommand->commandArguments[0];
-
-        printCommand(currentCommand);
 
         fflush(stdout);
 
@@ -88,4 +69,31 @@ int main(void)
       }
     }
     return 0;
+}
+
+Command * parseCommand(char * commandBuffer){
+  //TODO: Parse strings as parameters
+  int maxArgs = 10;
+  char *tempArgs[maxArgs];
+  Command *newCommand = malloc(sizeof(Command));
+  tempArgs[0] = strtok(commandBuffer, " ");
+
+  int i = 1;
+  while (i < maxArgs){
+    tempArgs[i] = strtok(NULL, " ");
+    if (tempArgs[i] == NULL){
+      break;
+    }
+    i++;
+  }
+
+  newCommand->commandArguments = (char **)malloc((i+1) * sizeof(char*));
+  newCommand->commandArguments[i] = (char *) 0;
+  memcpy(newCommand->commandArguments, &tempArgs[0], i*sizeof(char*));
+  newCommand->argc = i;
+  newCommand->commandText = tempArgs[0];
+
+  printCommand(newCommand);
+
+  return newCommand;
 }
