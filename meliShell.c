@@ -35,6 +35,11 @@ int main(void)
 
         writeToHistory(&history, commandBuffer);
 
+        //check for the history commandText
+        if (strcmp (commandBuffer,"history\n") == 0){
+          strcpy (commandBuffer,"cat .myhistory");
+        }
+
         //Strip the newline character
         char * pos;
         if ((pos=strchr(commandBuffer, '\n')) != NULL){
@@ -120,9 +125,11 @@ Command * parseCommand(char * commandBuffer){
 }
 
 int executePipedCommands(Command *currentCommand){
+  int i = 0;
   //Setting up pipes
-  //writeToHistory(&0, "Setting up pipes for command:");
-  //writeToHistory(&0, currentCommand->commandText);
+  // writeToHistory(&i, "Setting up pipes for command\n");
+  // writeToHistory(&i, currentCommand->commandText);
+  // writeToHistory(&i, "\n");
   int fdes[2];
   if (pipe(fdes) == -1){
       perror("Pipes failed D:");
@@ -137,18 +144,17 @@ int executePipedCommands(Command *currentCommand){
   else if (pid == 0){
     //child process, the one in the left of the pipe
     currentCommand = currentCommand->nextCommand;
-    // printf("I am a child process preparing to write, I'll execute command:\n");
-    // printCommand(currentCommand);
-    // printf("\n\n");
-    if(currentCommand->nextCommand != NULL){
-      // printf("But there's more, so I'll fork more :)\n");
-    }
+    // writeToHistory(&i, "I am a child process preparing to write, I'll execute command:\n");
+    // writeToHistory(&i, currentCommand->commandText);
+    // writeToHistory(&i, "\n");
 
     dup2(fdes[WRITE], fileno(stdout));
     close(fdes[READ]);
     close(fdes[WRITE]);
     if(currentCommand->nextCommand != NULL){
-      executePipedCommands(currentCommand->nextCommand);
+      // writeToHistory(&i, "But there's more, so I'll fork more :)\n");
+      // writeToHistory(&i, "\n");
+      executePipedCommands(currentCommand);
     }
     execvp (currentCommand->commandText, currentCommand->commandArguments);
     return 1;
@@ -156,15 +162,14 @@ int executePipedCommands(Command *currentCommand){
   }
   else {
     //parent process, the one in the right of the pipe
-    // printf("%d a parent process here!:\n", pid);
     dup2(fdes[READ], fileno(stdin));
     close(fdes[READ]);
     close(fdes[WRITE]);
-    // printf("Parent process %d executing command now!:\n", pid);
-    //printCommand(currentCommand);
-    // printf("\n\n");
+    // writeToHistory(&i, "Parent process executing command now!:\n");
+    // writeToHistory(&i, currentCommand->commandText);
+    // writeToHistory(&i, "\n");
     execvp (currentCommand->commandText, currentCommand->commandArguments);
-    // perror("execvp failure in parent");
+    perror("execvp failure in parent");
     return 1;
   }
 }
