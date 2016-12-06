@@ -1,20 +1,5 @@
 #include "meliShell.h"
 
-void printCommand(Command *command){
-  int i;
-  printf("command: %s ", command->commandText);
-  printf("number of args: %d ", command->argc);
-  for(i=0; i<=command->argc; i++){
-    printf("argument: %s ", command->commandArguments[i]);
-  }
-  if (command->nextCommand){
-    printf("has next command");
-  } else {
-    printf("no next command");
-  }
-  printf("\n");
-}
-
 int main(void)
 {
     int bufferSize = 300;
@@ -27,7 +12,7 @@ int main(void)
     history = initializeHistory();
 
     while(1){
-      background = 0;
+      background = 0; commandPointer = NULL; inputFile = NULL; outputFile = NULL;
       memset(commandBuffer, 0, bufferSize);
       printf("> ");
 
@@ -44,38 +29,43 @@ int main(void)
 
         //Strip the newline character
         char * pos;
-        if ((pos=strchr(commandBuffer, '\n')) != NULL){
-          *pos = '\0';
+        if ((pos = strchr(commandBuffer, '\n')) != NULL){
+          *pos = 0;
         }
 
         //Find the background execution terminator
         //TODO: check if it's in the end
-        if ((pos=strchr(commandBuffer, '&')) != NULL){
+        if ((pos = strchr(commandBuffer, '&')) != NULL){
           background = 1;
-          *pos = '\0';
+          *pos = 0;
         }
 
-        //Find output redirection
-        if ((pos=strchr(commandBuffer, '>')) != NULL){
-          *pos = '\0';
-          inputFile = pos;
+        char *redirectionPtr;
+        if ((pos = strchr(commandBuffer, '<')) != NULL){
+          inputFile = trim(strtok_r(commandBuffer, "<", &redirectionPtr));
+        } else {
+          redirectionPtr = commandBuffer;
         }
-
-        //Find input redirection
-        if ((pos=strchr(commandBuffer, '<')) != NULL){
-          *pos = '\0';
-        }
+        commandPointer = strtok_r(NULL, ">", &redirectionPtr);
+        outputFile = trim(strtok_r(NULL, ">", &redirectionPtr));
 
         //parsing commands
         char *parsePtr;
         Command *newCommand;
-        char *commandPart = strtok_r(commandBuffer, "|", &parsePtr);
+        char *commandPart = strtok_r(commandPointer, "|", &parsePtr);
         currentCommand = parseCommand(commandPart);
+        if(inputFile){
+          currentCommand->inputFile = inputFile;
+        }
 
         while ((commandPart = strtok_r(NULL, "|", &parsePtr)) != NULL){
           newCommand = parseCommand(commandPart);
           newCommand->nextCommand = currentCommand;
           currentCommand = newCommand;
+        }
+
+        if(outputFile){
+          currentCommand->outputFile = outputFile;
         }
 
         fflush(stdout);
@@ -133,8 +123,7 @@ Command * parseCommand(char * commandBuffer){
   }
 
   newCommand->commandText = newCommand->commandArguments[0];
-  newCommand->nextCommand = NULL;
-  // printCommand(newCommand);
+  newCommand->nextCommand = NULL; newCommand->inputFile = NULL; newCommand->outputFile = NULL;
 
   return newCommand;
 }
@@ -172,6 +161,12 @@ int executePipedCommands(Command *currentCommand){
       // writeToHistory(&i, "But there's more, so I'll fork more :)\n");
       // writeToHistory(&i, "\n");
       executePipedCommands(currentCommand);
+    } 
+    else if(currentCommand->inputFile){
+      //file redirection 
+      int fin = open(currentCommand->inputFile, O_RDWR | O_CREAT);
+      dup2(fin, fileno(stdin));
+      close(fin);
     }
     execvp (currentCommand->commandText, currentCommand->commandArguments);
     dup2(oldOut, WRITE);
@@ -181,10 +176,17 @@ int executePipedCommands(Command *currentCommand){
 
   }
   else {
-    //parent process, the one in the right of the pipe
+    //Parent process, the one in the right of the pipe
     dup2(fdes[READ], fileno(stdin));
     close(fdes[READ]);
     close(fdes[WRITE]);
+    if(currentCommand->outputFile){
+      //file redirection 
+      int fout = open(currentCommand->outputFile, O_RDWR | O_TRUNC | O_CREAT);
+      dup2(fout, fileno(stdout));
+      close(fout);
+    }
+
     // writeToHistory(&i, "Parent process executing command now!:\n");
     // writeToHistory(&i, currentCommand->commandText);
     // writeToHistory(&i, "\n");
@@ -243,4 +245,50 @@ int executeHistory(char * commandBuffer, int bufferSize){
   (*pos)++;
   strcpy(commandBuffer, pos+1);
   return 1;
+}
+
+void printCommand(Command *command){
+  int i;
+  printf("command: %s ", command->commandText);
+  printf("number of args: %d ", command->argc);
+  for(i=0; i<=command->argc; i++){
+    printf("argument: %s ", command->commandArguments[i]);
+  }
+  if (command->nextCommand){
+    printf("has next command");
+  } 
+  if (command->inputFile){
+    printf("input file: %s", command->inputFile);
+  } 
+  if (command->outputFile){
+    printf("output file: %s", command->outputFile);
+  } 
+  printf("\n");
+}
+
+char * trim(char *str){
+    size_t len = 0;
+    char *frontp = str;
+    char *endp = NULL;
+
+    if(str == NULL) { return NULL; }
+    if(str[0] == '\0') { return str; }
+
+    len = strlen(str);
+    endp = str + len;
+    while(isspace((unsigned char) *frontp)) { ++frontp; }
+    if(endp != frontp){
+      while( isspace((unsigned char) *(--endp)) && endp != frontp ) {}
+    }
+
+    if(str + len - 1 != endp)
+            *(endp + 1) = '\0';
+    else if( frontp != str &&  endp == frontp )
+            *str = '\0';
+    endp = str;
+    if(frontp != str){
+      while(*frontp) { *endp++ = *frontp++; }
+      *endp = '\0';
+    }
+    return str;
 }
