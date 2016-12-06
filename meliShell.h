@@ -14,5 +14,6 @@ Command * parseCommand(char * commandBuffer);
 int executePipedCommands(Command *currentCommand);
 int initializeHistory();
 void writeToHistory(int *history, char *commandLine);
+int executeHistory(char * commandBuffer, int bufferSize);
 
 enum {READ, WRITE};

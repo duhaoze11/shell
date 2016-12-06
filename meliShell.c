@@ -33,6 +33,13 @@ int main(void)
 
       if (fgets(commandBuffer, 300, stdin) != NULL) {
 
+        if (commandBuffer[0] == '!'){
+          commandBuffer[0] = '0';
+          if (!executeHistory(commandBuffer, bufferSize)){
+            continue;
+          }
+        }
+
         writeToHistory(&history, commandBuffer);
 
         //check for the history commandText
@@ -76,16 +83,7 @@ int main(void)
           return 2;
         }
         else if (pid == 0) {
-          //child process
-          if (pipes > 0){
-              executePipedCommands(currentCommand);
-          }
-          if (pipes == 0){
-            //execution of unique command
-            execvp (currentCommand->commandText, currentCommand->commandArguments);
-            perror("execvp failure");
-            return 1;
-          }
+          executePipedCommands(currentCommand);
         }
         else {
           //parent process, waits if not background
@@ -201,4 +199,24 @@ void writeToHistory(int *history, char *commandLine){
   fprintf(historyFile, "%d %s",*(history), commandLine);
   *(history) = *(history)+1;
   fclose(historyFile);
+}
+
+int executeHistory(char * commandBuffer, int bufferSize){
+  int historyNumber = 0;
+  sscanf(commandBuffer, "%d", &historyNumber);
+  if (historyNumber == 0){
+    printf("Invalid history command\n");
+    return 0;
+  }
+  char historyCommand[bufferSize];
+  sprintf(historyCommand, "cat .myhistory | grep -m 1 %d", historyNumber);
+  FILE *fin = popen(historyCommand, "r");
+  memset(historyCommand, 0, bufferSize);
+  read(fileno(fin), historyCommand, bufferSize);
+
+  char * pos;
+  pos = strchr(historyCommand, ' ');
+  (*pos)++;
+  strcpy(commandBuffer, pos+1);
+  return 1;
 }
