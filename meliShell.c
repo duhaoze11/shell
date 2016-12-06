@@ -21,13 +21,13 @@ int main(void)
     Command *currentCommand;
     int history;
     char commandBuffer[bufferSize];
-    int background, pipes;
-    FILE *historyFile;
+    char *commandPointer, *inputFile, *outputFile;
+    int background;
 
     history = initializeHistory();
 
     while(1){
-      background = 0; pipes = 0;
+      background = 0;
       memset(commandBuffer, 0, bufferSize);
       printf("> ");
 
@@ -42,11 +42,6 @@ int main(void)
 
         writeToHistory(&history, commandBuffer);
 
-        //check for the history commandText
-        if (strcmp (commandBuffer,"history\n") == 0){
-          strcpy (commandBuffer,"cat .myhistory");
-        }
-
         //Strip the newline character
         char * pos;
         if ((pos=strchr(commandBuffer, '\n')) != NULL){
@@ -60,6 +55,17 @@ int main(void)
           *pos = '\0';
         }
 
+        //Find output redirection
+        if ((pos=strchr(commandBuffer, '>')) != NULL){
+          *pos = '\0';
+          inputFile = pos;
+        }
+
+        //Find input redirection
+        if ((pos=strchr(commandBuffer, '<')) != NULL){
+          *pos = '\0';
+        }
+
         //parsing commands
         char *parsePtr;
         Command *newCommand;
@@ -67,7 +73,6 @@ int main(void)
         currentCommand = parseCommand(commandPart);
 
         while ((commandPart = strtok_r(NULL, "|", &parsePtr)) != NULL){
-          pipes++;
           newCommand = parseCommand(commandPart);
           newCommand->nextCommand = currentCommand;
           currentCommand = newCommand;
@@ -83,7 +88,9 @@ int main(void)
           return 2;
         }
         else if (pid == 0) {
-          executePipedCommands(currentCommand);
+          if (!executePipedCommands(currentCommand)){
+            continue;
+          }
         }
         else {
           //parent process, waits if not background
@@ -112,18 +119,30 @@ Command * parseCommand(char * commandBuffer){
     i++;
   }
 
-  newCommand->commandArguments = (char **)malloc((i+1) * sizeof(char*));
-  newCommand->commandArguments[i] = (char *) 0;
-  memcpy(newCommand->commandArguments, &tempArgs[0], i*sizeof(char*));
-  newCommand->argc = i;
-  newCommand->commandText = tempArgs[0];
+  if (strstr(tempArgs[0], "history")){
+    newCommand->commandArguments = (char **)malloc(3 * sizeof(char*));
+    newCommand->commandArguments[0] = "cat";
+    newCommand->commandArguments[1] = ".myhistory";
+    newCommand->commandArguments[2] = (char *) 0;
+    newCommand->argc = 3;
+  } else {
+    newCommand->commandArguments = (char **)malloc((i+1) * sizeof(char*));
+    newCommand->commandArguments[i] = (char *) 0;
+    memcpy(newCommand->commandArguments, &tempArgs[0], i*sizeof(char*));
+    newCommand->argc = i;
+  }
+
+  newCommand->commandText = newCommand->commandArguments[0];
   newCommand->nextCommand = NULL;
+  // printCommand(newCommand);
 
   return newCommand;
 }
 
 int executePipedCommands(Command *currentCommand){
   int i = 0;
+  int oldOut = dup(WRITE);
+
   //Setting up pipes
   // writeToHistory(&i, "Setting up pipes for command\n");
   // writeToHistory(&i, currentCommand->commandText);
@@ -131,13 +150,13 @@ int executePipedCommands(Command *currentCommand){
   int fdes[2];
   if (pipe(fdes) == -1){
       perror("Pipes failed D:");
-      return 1;
+      exit(0);
   }
 
   int pid = fork();
   if (pid == -1){
     perror("Fork failed D:");
-    return 1;
+    exit(0);
   }
   else if (pid == 0){
     //child process, the one in the left of the pipe
@@ -155,7 +174,10 @@ int executePipedCommands(Command *currentCommand){
       executePipedCommands(currentCommand);
     }
     execvp (currentCommand->commandText, currentCommand->commandArguments);
-    return 1;
+    dup2(oldOut, WRITE);
+    close(oldOut);
+    perror("execvp failure");
+    exit(0);
 
   }
   else {
@@ -167,8 +189,10 @@ int executePipedCommands(Command *currentCommand){
     // writeToHistory(&i, currentCommand->commandText);
     // writeToHistory(&i, "\n");
     execvp (currentCommand->commandText, currentCommand->commandArguments);
-    perror("execvp failure in parent");
-    return 1;
+    dup2(oldOut, WRITE);
+    close(oldOut);
+    perror("execvp failure");
+    exit(0);
   }
 }
 
