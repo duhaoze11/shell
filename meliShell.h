@@ -11,5 +11,8 @@ typedef struct commandStruct{
 } Command;
 
 Command * parseCommand(char * commandBuffer);
+int executePipedCommands(Command *currentCommand);
+int initializeHistory();
+void writeToHistory(int *history, char *commandLine);
 
 enum {READ, WRITE};

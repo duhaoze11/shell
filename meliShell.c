@@ -7,21 +7,33 @@ void printCommand(Command *command){
   for(i=0; i<=command->argc; i++){
     printf("argument: %s ", command->commandArguments[i]);
   }
+  if (command->nextCommand){
+    printf("has next command");
+  } else {
+    printf("no next command");
+  }
   printf("\n");
 }
 
 int main(void)
 {
+    int bufferSize = 300;
     Command *currentCommand;
-    char commandBuffer[300];
-    int background;
+    int history;
+    char commandBuffer[bufferSize];
+    int background, pipes;
+    FILE *historyFile;
+
+    history = initializeHistory();
 
     while(1){
-      background = 0;
-      memset(commandBuffer, 0, sizeof(commandBuffer));
-      printf(">");
+      background = 0; pipes = 0;
+      memset(commandBuffer, 0, bufferSize);
+      printf("> ");
 
       if (fgets(commandBuffer, 300, stdin) != NULL) {
+
+        writeToHistory(&history, commandBuffer);
 
         //Strip the newline character
         char * pos;
@@ -43,6 +55,7 @@ int main(void)
         currentCommand = parseCommand(commandPart);
 
         while ((commandPart = strtok_r(NULL, "|", &parsePtr)) != NULL){
+          pipes++;
           newCommand = parseCommand(commandPart);
           newCommand->nextCommand = currentCommand;
           currentCommand = newCommand;
@@ -50,18 +63,27 @@ int main(void)
 
         fflush(stdout);
 
-        //execution of command
+        //execution of commands
         int status;
         int pid = fork();
-        if (pid == 0) {
+        if (pid == -1){
+          perror("Fork failed D:");
+          return 2;
+        }
+        else if (pid == 0) {
           //child process
-          execvp (currentCommand->commandText, currentCommand->commandArguments);
-          //execvp ("ls\n", currentCommand->commandArguments);
-          perror("execvp failure");
-          return 1;
+          if (pipes > 0){
+              executePipedCommands(currentCommand);
+          }
+          if (pipes == 0){
+            //execution of unique command
+            execvp (currentCommand->commandText, currentCommand->commandArguments);
+            perror("execvp failure");
+            return 1;
+          }
         }
         else {
-          //parent process
+          //parent process, waits if not background
           if (!background) {
             waitpid(pid, &status, 0);
           }
@@ -92,8 +114,86 @@ Command * parseCommand(char * commandBuffer){
   memcpy(newCommand->commandArguments, &tempArgs[0], i*sizeof(char*));
   newCommand->argc = i;
   newCommand->commandText = tempArgs[0];
-
-  printCommand(newCommand);
+  newCommand->nextCommand = NULL;
 
   return newCommand;
+}
+
+int executePipedCommands(Command *currentCommand){
+  //Setting up pipes
+  //writeToHistory(&0, "Setting up pipes for command:");
+  //writeToHistory(&0, currentCommand->commandText);
+  int fdes[2];
+  if (pipe(fdes) == -1){
+      perror("Pipes failed D:");
+      return 1;
+  }
+
+  int pid = fork();
+  if (pid == -1){
+    perror("Fork failed D:");
+    return 1;
+  }
+  else if (pid == 0){
+    //child process, the one in the left of the pipe
+    currentCommand = currentCommand->nextCommand;
+    // printf("I am a child process preparing to write, I'll execute command:\n");
+    // printCommand(currentCommand);
+    // printf("\n\n");
+    if(currentCommand->nextCommand != NULL){
+      // printf("But there's more, so I'll fork more :)\n");
+    }
+
+    dup2(fdes[WRITE], fileno(stdout));
+    close(fdes[READ]);
+    close(fdes[WRITE]);
+    if(currentCommand->nextCommand != NULL){
+      executePipedCommands(currentCommand->nextCommand);
+    }
+    execvp (currentCommand->commandText, currentCommand->commandArguments);
+    return 1;
+
+  }
+  else {
+    //parent process, the one in the right of the pipe
+    // printf("%d a parent process here!:\n", pid);
+    dup2(fdes[READ], fileno(stdin));
+    close(fdes[READ]);
+    close(fdes[WRITE]);
+    // printf("Parent process %d executing command now!:\n", pid);
+    //printCommand(currentCommand);
+    // printf("\n\n");
+    execvp (currentCommand->commandText, currentCommand->commandArguments);
+    // perror("execvp failure in parent");
+    return 1;
+  }
+}
+
+int initializeHistory() {
+    int historyBufferSize = 350;
+    char historyBuffer[350];
+    int history = 1;
+
+    memset(historyBuffer, 0, historyBufferSize);
+    FILE *historyFile = fopen(".myhistory", "a+");
+    rewind(historyFile);
+    while(fgets(historyBuffer, historyBufferSize, historyFile)) {
+    }
+    
+    if (sscanf(historyBuffer, "%d *", &history) == EOF){
+      history = 1;
+    } else {
+      history++;
+    }
+    
+    fclose(historyFile);
+
+    return history;
+}
+
+void writeToHistory(int *history, char *commandLine){
+  FILE *historyFile = fopen(".myhistory", "a+");
+  fprintf(historyFile, "%d %s",*(history), commandLine);
+  *(history) = *(history)+1;
+  fclose(historyFile);
 }
