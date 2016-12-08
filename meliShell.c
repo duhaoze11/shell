@@ -40,14 +40,27 @@ int main(void)
           *pos = 0;
         }
 
+        //Process file redirection
+        char *posIn = NULL;
+        char *posOut = NULL;
         char *redirectionPtr;
-        if ((pos = strchr(commandBuffer, '<')) != NULL){
-          inputFile = trim(strtok_r(commandBuffer, "<", &redirectionPtr));
+
+        posIn = strchr(commandBuffer, '<');
+        posOut = strchr(commandBuffer, '>');
+
+        if (!posOut || (posIn && posOut && posIn < posOut)){
+          commandPointer = strtok_r(commandBuffer, "<", &redirectionPtr);
+          inputFile = trim(strtok_r(NULL, ">", &redirectionPtr));
+          outputFile = trim(strtok_r(NULL, ">", &redirectionPtr));
         } else {
-          redirectionPtr = commandBuffer;
+          commandPointer = strtok_r(commandBuffer, ">", &redirectionPtr);
+          outputFile = trim(strtok_r(NULL, "<", &redirectionPtr));
+          inputFile = trim(strtok_r(NULL, "<", &redirectionPtr));
         }
-        commandPointer = strtok_r(NULL, ">", &redirectionPtr);
-        outputFile = trim(strtok_r(NULL, ">", &redirectionPtr));
+
+        // printf("command: $%s$\n", commandPointer);
+        // printf("input: $%s$\n", inputFile);
+        // printf("output: $%s$\n", outputFile);
 
         //parsing commands
         char *parsePtr;
@@ -164,7 +177,10 @@ int executePipedCommands(Command *currentCommand){
     } 
     else if(currentCommand->inputFile){
       //file redirection 
-      int fin = open(currentCommand->inputFile, O_RDWR | O_CREAT);
+      // writeToHistory(&i, "getting input from file for command:\n");
+      // writeToHistory(&i, currentCommand->commandText);
+      // writeToHistory(&i, "\n");
+      int fin = open(currentCommand->inputFile, O_RDWR | O_CREAT, 0600);
       dup2(fin, fileno(stdin));
       close(fin);
     }
@@ -182,9 +198,18 @@ int executePipedCommands(Command *currentCommand){
     close(fdes[WRITE]);
     if(currentCommand->outputFile){
       //file redirection 
-      int fout = open(currentCommand->outputFile, O_RDWR | O_TRUNC | O_CREAT);
+      int fout = open(currentCommand->outputFile, O_RDWR | O_TRUNC | O_CREAT, 0600);
       dup2(fout, fileno(stdout));
       close(fout);
+    } 
+    if(currentCommand->inputFile){
+      //file redirection 
+      // writeToHistory(&i, "getting input from file for command:\n");
+      // writeToHistory(&i, currentCommand->commandText);
+      // writeToHistory(&i, "\n");
+      int fin = open(currentCommand->inputFile, O_RDWR | O_CREAT, 0600);
+      dup2(fin, fileno(stdin));
+      close(fin);
     }
 
     // writeToHistory(&i, "Parent process executing command now!:\n");
