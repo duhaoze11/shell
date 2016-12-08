@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <sys/wait.h>
 
 typedef struct commandStruct{
    char *commandText;
