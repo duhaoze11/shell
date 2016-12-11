@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <sys/wait.h>
+#include <termios.h>
 
 typedef struct commandStruct{
    char *commandText;
@@ -23,5 +24,6 @@ int executeHistory(char * commandBuffer, int bufferSize);
 char * replace_str(char *str, char *orig, char *rep);
 void printCommand(Command *command);
 char * trim(char *str);
+int getch(void);
 
 enum {READ, WRITE};
