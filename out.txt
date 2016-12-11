@@ -1,4 +1,0 @@
-meliShell
-meliShell.c
-meliShell.h
-out.txt
