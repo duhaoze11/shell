@@ -81,11 +81,12 @@ int main(void)
             printf("%c", x);
           }
         }
-        // printf("Key code x is %d y is %d, z is %d\n", x, y, z);
       }
-
-      // printf("%s\n", commandBuffer);
       printf("\n");
+
+      if(inputLength == 0){
+        continue;
+      }
 
       if (commandBuffer[0] == '!'){
         commandBuffer[0] = '0';
@@ -121,15 +122,12 @@ int main(void)
         inputFile = trim(strtok_r(NULL, "<", &redirectionPtr));
       }
 
-      // printf("command: $%s$\n", commandPointer);
-      // printf("input: $%s$\n", inputFile);
-      // printf("output: $%s$\n", outputFile);
-
       //parsing commands
       char *parsePtr;
       Command *newCommand;
       char *commandPart = strtok_r(commandPointer, "|", &parsePtr);
       currentCommand = parseCommand(commandPart);
+
       if(inputFile){
         currentCommand->inputFile = inputFile;
       }
@@ -171,7 +169,7 @@ int main(void)
 Command * parseCommand(char * commandBuffer){
   //TODO: Parse strings as parameters
   int maxArgs = 10;
-  char *tempArgs[maxArgs];
+  char *tempArgs[maxArgs]; char firstChar;
   Command *newCommand = malloc(sizeof(Command));
   tempArgs[0] = strtok(commandBuffer, " ");
 
@@ -180,6 +178,20 @@ Command * parseCommand(char * commandBuffer){
     tempArgs[i] = strtok(NULL, " ");
     if (tempArgs[i] == NULL){
       break;
+    }
+
+    firstChar = tempArgs[i][0];
+    if (firstChar == '\"' || firstChar == '\'') {
+      char *stringPart; char *tempString; char lastChar;
+
+      tempString = tempArgs[i]; //will concat all things in tempArgs
+      tempString++; //get rid of the initial quotation sign
+
+      if(tempString[strlen(tempString-1)] != firstChar){//if the string is longer
+        stringPart = strtok(NULL, "\"\'"); //find the remaining part of the string
+        sprintf(tempString, "%s %s", tempString, stringPart); //concatenate the second part of the string
+      }
+      tempArgs[i] = tempString;
     }
     i++;
   }
