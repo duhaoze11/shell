@@ -4,7 +4,7 @@ int main(void)
 {
     int bufferSize = 300;
     Command *currentCommand;
-    int history, x, y, z, inputLength;
+    int history, x, y, z, inputLength, historyBack;
     char commandBuffer[bufferSize];
     char *commandPointer, *inputFile, *outputFile;
     int background;
@@ -14,7 +14,7 @@ int main(void)
     while(1){
       background = 0; x = ' '; y = ' '; z = ' '; inputLength = 0;
       commandPointer = NULL; inputFile = NULL; outputFile = NULL;
-      memset(commandBuffer, 0, bufferSize);
+      historyBack = history; memset(commandBuffer, 0, bufferSize);
       printf("> ");
 
       while ((x = getch()) != '\n'){
@@ -24,11 +24,37 @@ int main(void)
           if (x == 27 && y == 91){
             switch (z){
             case 65:
-              //Up arrow"
+              //Up arrow
+              if(historyBack != 1){
+                historyBack--;
+                while (inputLength != 0) {
+                  inputLength--;
+                  write(2, "\10\33[1P", 5);
+                }
+                sprintf(commandBuffer, "%d", historyBack);
+                if (!executeHistory(commandBuffer, bufferSize)){
+                  continue; //If the history execution is not valid
+                }
+                inputLength = strlen(commandBuffer);
+                printf("%s", commandBuffer);
+              }
               break;
 
             case 66:
               //Down arrow
+              if(historyBack < history-1){
+                historyBack++;
+                while (inputLength != 0) {
+                  inputLength--;
+                  write(2, "\10\33[1P", 5);
+                }
+                sprintf(commandBuffer, "%d", historyBack);
+                if (!executeHistory(commandBuffer, bufferSize)){
+                  continue; //If the history execution is not valid
+                }
+                inputLength = strlen(commandBuffer);
+                printf("%s", commandBuffer);
+              }
               break;
 
             case 67:
@@ -43,9 +69,13 @@ int main(void)
         }
         else {
           if (x == 127) {
-            /* code */
-            //delete
+            //delete key
+            if(inputLength > 0){
+              write(2, "\10\33[1P", 5);
+              inputLength--;
+            }
           } else {
+            //any visible character
             commandBuffer[inputLength] = x;
             inputLength++;
             printf("%c", x);
