@@ -98,10 +98,9 @@ int main(void)
       writeToHistory(&history, commandBuffer);
 
       //Find the background execution terminator
-      if (commandBuffer[inputLength] == '&'){
-        printf("background execution found\n");
+      if (commandBuffer[inputLength-1] == '&'){
         background = 1;
-        commandBuffer[inputLength] = 0;
+        commandBuffer[inputLength-1] = 0;
       }
 
       //Process file redirection
